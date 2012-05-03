@@ -82,7 +82,7 @@ do
 	log "uploading to to ${RP_SERVER}"
     #echo "put $files" > cmd.txt
     #sftp -o IdentityFile=$SSH_KEY -b cmd.txt ${RP_UNAME}@${RP_SERVER} |
-    rsync -av $STAGE_DIR $RP_SERVER: 2>&1 |
+    rsync -e ssh -av $STAGE_DIR $RP_SERVER: 2>&1 |
 	while read line
 	do
 	  log "$line"
