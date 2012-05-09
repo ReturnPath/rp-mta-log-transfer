@@ -147,7 +147,7 @@ sub handle_line {
     }
 
     # find rejected ones
-    elsif ( $remainder =~ /^reject: (.*); from=/ ) {
+    elsif ( $remainder =~ /reject: (.*); from=/ ) {
         $info->{'status'}  = 'rejected';
         $info->{'message'} = $1;
     }
@@ -180,13 +180,14 @@ sub handle_line {
     }
 }
 
-
 sub findattribs {
     my ( $info, $remainder ) = @_;
 
     # find any extended attributes
     while ( $remainder =~ /([a-z]+)=(\S+)/g ) {
-        $info->{$1} = $2;
+        my ( $k, $v ) = ( $1, $2 );
+        $info->{$k} = $v;
+        chop $info->{$k} if $v =~ /;$/;
     }
 
 }
@@ -210,10 +211,10 @@ sub print_message {
 
     # find actual IP & hostname if possible
     if ( $message->{'client'} =~ /^(\S+)\((\S+)\[([^\]])\]\)/ ) {
-        $message->{'helo'}     = $1;
+        $message->{'helo'} = $1 unless $message->{'helo'};
         $message->{'hostname'} = $2;
     }
-    if ( $message->{'client'} =~ /\S+\[(\d+\.\d+\.\d+\.\d+)\]/ ) {
+    if ( $message->{'client'} =~ /\S+\[([\d\.]+|[A-Za-z\d:]+)\]/ ) {
         $message->{'ip'} = $1;
     }
 
@@ -222,10 +223,12 @@ sub print_message {
 
     # find status code & message
     if ( $message->{'message'} =~ /:(\d{3}) (.*?):/ ) {
+    #if ( $message->{'message'} =~ /:\s?(\d{3}) (.*); \S+=/ ) {
         $message->{'code'}    = $1;
         $message->{'message'} = $2;
     }
 
+    return unless $message->{'ip'};
     my $newline = join(
         "\t", (
             $message->{'time'},   $fromdomain,        $todomain,
