@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+#
 # Copyright (c) 2012 Return Path, Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -42,7 +43,6 @@
 #                            parameter will be part of the output filename.
 #
 #
-#
 # Resulting output will be two files.
 #
 # File 1, a volume data file, will be named ${hostname}.${fileDate}.csv
@@ -56,22 +56,22 @@
 # 
 # Date/Time
 # 	
-#   YYYY-­‐MM-­‐DDTHH:MM:SSZ (UTC timestamp)
+#   YYYY-­-MM-­-DDTHH:MM:SSZ (UTC timestamp)
 # 
-#   The date/time field is a UTC-­‐formatted timestamp from time-zone of the 
+#   The date/time field is a UTC-­-formatted timestamp from time-zone of the 
 #   MTA server sending the data, representing the start of the aggregation 
 #   timeframe based on the source email message received date.
 # 
 # From: Domain
 # 	
-#   SMTP Domain Received appearing in the mail “envelope” from of the source 
+#   SMTP Domain Received appearing in the mail "envelope" from of the source 
 #   email message. Null (if Rejected)
 # 
 # Source IP
 # 	
 #   XXX.XXX.XXX.XXX (IP address)
 # 
-#   The dotted‐quad IPv4 IP address which connected to the receiving MTA in 
+#   The dotted-quad IPv4 IP address which connected to the receiving MTA in 
 #   order to deliver the source email message or messages.
 #  
 # Total Attempted
@@ -124,55 +124,55 @@
 # 
 # header_from_domain*               From: domain  
 #   From: domain as it appears in the header of the source email message. 
-#   (“Percent” encoded, length limited)
+#   ("Percent" encoded, length limited)
 # 
 # mail_from_domain*               SMTP domain received
-#   Domain appearing in the mail “envelope” from of the source email message. 
-#   (“Percent” encoded, length limited)
+#   Domain appearing in the mail "envelope" from of the source email message. 
+#   ("Percent" encoded, length limited)
 # 
 # dkim_selector*               s= (RFC 4871)
-#   The s= “selector” value from the source message DKIM header as defined in 
-#   RFC 4871. (“Percent” encoded, length limited)
+#   The s= "selector" value from the source message DKIM header as defined in 
+#   RFC 4871. ("Percent" encoded, length limited)
 # 
 # dkim_identity               i= (RFC 4871)
-#   The i= “identity” value from the source message DKIM header as defined in 
-#   RFC 4871. (“Percent” encoded, length limited)
+#   The i= "identity" value from the source message DKIM header as defined in 
+#   RFC 4871. ("Percent" encoded, length limited)
 # 
 # dkim_canonicalization*               c= (RFC 4871)
-#   The c= “canonicalization” value from the source message DKIM header as 
-#   defined in RFC 4871. (“Percent” encoded, length limited)
+#   The c= "canonicalization" value from the source message DKIM header as 
+#   defined in RFC 4871. ("Percent" encoded, length limited)
 # 
 # dkim_domain*               d= (RFC 4871)
-#   The d= “domain” value from the source message DKIM header as defined in 
-#   RFC 4871. (“Percent” encoded, length limited)
+#   The d= "domain" value from the source message DKIM header as defined in 
+#   RFC 4871. ("Percent" encoded, length limited)
 # 
 # dkim_result*                   string result of check  
-#   Frequent results of the DKIM result may include “Pass”,  “Neutral”, 
-#   “Fail”, “Error”, or the reason for the error. (“Percent” encoded, length 
+#   Frequent results of the DKIM result may include "Pass",  "Neutral", 
+#   "Fail", "Error", or the reason for the error. ("Percent" encoded, length 
 #   limited)
 # 
 # dkim_pass_fail               valid results = 0 (fail), 1 (pass), null
 #   DKIM validation results:
-#   A result of “0” means the message received a “fail” result.
-#   A result of “1” means the message received a “pass” result.
-#   A result of “null” means the message was not observed to have a DKIM 
+#   A result of "0" means the message received a "fail" result.
+#   A result of "1" means the message received a "pass" result.
+#   A result of "null" means the message was not observed to have a DKIM 
 #   signature.
 # 
 # spf_result*               string result of check
-#   Frequent results of the SPF result may include “Pass”, “Neutral”, “Fail”, 
-#   “Error”, or the reason for the error. (“Percent” encoded, length limited)
+#   Frequent results of the SPF result may include "Pass", "Neutral", "Fail", 
+#   "Error", or the reason for the error. ("Percent" encoded, length limited)
 # 
 # spf_pass_fail               valid results = 0 (fail), 1 (pass), null
 #   SPF validation results:
-#   A result of “0” means the message received a “fail” result.
-#   A result of “1” means the message received a “pass” result.
-#   A result of “null” means the message was not observed to have an SPF record.
+#   A result of "0" means the message received a "fail" result.
+#   A result of "1" means the message received a "pass" result.
+#   A result of "null" means the message was not observed to have an SPF record.
 # 
 # auth_policy_result               valid results = 0 (fail), 1 (pass), null
-#   A result of “0” means the message was NOT blocked for authentication 
-#   reasons. A result of “1” means the message was blocked for one or more 
+#   A result of "0" means the message was NOT blocked for authentication 
+#   reasons. A result of "1" means the message was blocked for one or more 
 #   authentication reasons, including being on the authentication policy 
-#   registry. A result of “null” means no information was available about 
+#   registry. A result of "null" means no information was available about 
 #   message disposition.
 # 
 # count               # (number of identical authentication attempts/results)
@@ -332,6 +332,11 @@ use Net::CIDR::Lite;
 my %opts = ();
 my $exclude_ranges = Net::CIDR::Lite->new;
 
+# Number of lines to process before clearing the hash - set this lower if you
+# experience memory/swapping issues, but keep as high as possible to prevent
+# loss of data.
+my $line_threshold = 10000000;
+
 # Some global variables..
 # To track Source IPs
 my %icids = ();
@@ -353,11 +358,29 @@ my $rejectedConnx = 1;
 my $logfile;
 # For output filenames
 my $hostname;
+my $volDataFileName;
+my $authDataFileName;
 # UnixDate from Date::Manip package; we'll use this as part of the 
 # name of the files to be uploaded
 my $fileDate = UnixDate("today", "%Y%m%d%H%M%S");
 
-getopts('x:l:h:', \%opts);
+printf "%d/%d %d:%02d:%02u\n", (localtime(time))[4,3,2,1,0];
+
+my $year = &UnixDate("today","%Y");
+
+my %monthmap = (
+  Jan => '01',
+  Feb => '02',
+  Mar => '03',
+  Apr => '04',
+  May => '05',
+  Jun => '06',
+  Jul => '07',
+  Aug => '08',
+  Sep => '09',
+  Oct => '10',
+  Nov => '11',
+  Dec => '12' );
 
 sub setupExcludeRanges () {
   # We always add RFC 1918 addresses
@@ -372,6 +395,55 @@ sub setupExcludeRanges () {
       $exclude_ranges->add($_);
     }
   }
+}
+
+sub parseDate {
+  my $timestamp = shift;
+  my ($mo, $dy, $hr, $mi, $se, $yr) = $timestamp =~ /(\w+)\s+(\d{1,2})\s(\d\d):(\d\d):(\d\d)\s(\d{4})/;
+  if (! defined $yr || $yr < 1900) {
+    $yr = $year;
+  }
+  $mo = $monthmap{$mo};
+  if ($dy < 10) {
+    $dy = "0$dy";
+  }
+  return ($yr, $mo, $dy, $hr, $mi, $se);
+}
+
+
+# Write out the data we have accumulated so far in the %mids hash. After calling
+# this method, we must clear the %mids hash before continuing to process the logs
+# or we will write duplicate data. It is not necessary to clear the %icids hash.
+sub write_output() {
+
+  open (VOLUME, ">>$volDataFileName") || 
+    die "can't open $volDataFileName for writing\n";
+
+  open (AUTHDATA, ">>$authDataFileName") || 
+    die "can't open $authDataFileName for writing\n";
+  foreach my $key (keys %mids) {
+
+# Due to log rollovers, we won't have much useful info for some 
+# messages, so we'll just punt them.
+    if ((exists($mids{$key}->{timestamp})) && 
+        ($mids{$key}->{ip} ne "0.0.0.0") &&
+        ($mids{$key}->{attempted} > 0) &&
+        (!$exclude_ranges->find($mids{$key}->{ip})))  {
+      my ($y, $m, $d, $h, $min, $s) = parseDate($mids{$key}->{timestamp});
+      my $volDate = "$y-$m-$d $h:$min:$s";
+      print VOLUME "$volDate,$mids{$key}->{mail_from_domain},$mids{$key}->{ip},$mids{$key}->{attempted},$mids{$key}->{delivered},$mids{$key}->{rejected},$mids{$key}->{filtered},$mids{$key}->{unknown}\n";
+
+      if (($mids{$key}->{header_from_domain} ne "null") ||
+          ($mids{$key}->{mail_from_domain} ne "null")) {
+        my $authDate = "$y-$m-${d}T$h:$min:${s}Z";
+        print AUTHDATA "timestamp=$authDate\tsource_ip=$mids{$key}->{ip}\theader_from_domain=$mids{$key}->{header_from_domain}\tsmtp_mail_from=$mids{$key}->{mail_from_domain}\tdkim_selector=$mids{$key}->{dkim_selector}\tdkim_identity=$mids{$key}->{dkim_identity}\tdkim_canonicalization=$mids{$key}->{dkim_canonicalization}\tdkim_domain=$mids{$key}->{dkim_domain}\tdkim_result=$mids{$key}->{dkim_result}\tdkim_pass_fail=$mids{$key}->{dkim_pass_fail}\tspf_result=$mids{$key}->{spf_result}\tspf_pass_fail=$mids{$key}->{spf_pass_fail}\tauth_policy_result=$mids{$key}->{auth_policy_result}\tcount=$mids{$key}->{dkim_count}\n\n";
+      }
+    }
+
+  }
+
+  close (VOLUME);
+  close (AUTHDATA);
 }
 
 # does what it says
@@ -461,11 +533,13 @@ sub parse_dkim_signature ($;$) {
 } # end parse_dkim_signature
 
 # Begin main processing
+getopts('x:l:h:', \%opts);
+
 setupExcludeRanges();
 
 if (defined($opts{l})) {
   $logfile = $opts{l};
-} 
+}
 else {
   die "usage: $0 [-x exclude_file] -l logfile -h hostname\n";
 }
@@ -477,11 +551,19 @@ else {
   die "usage: $0 [-x exclude_file] -l logfile -h hostname\n";
 }
 
+$volDataFileName = "${hostname}.${fileDate}.csv";
+$authDataFileName = "${hostname}_auth.${fileDate}.csv";
+
 # Open the log file for parsing
 open (FH, "<$logfile") || die "Can't open $logfile for reading\n";
 
+my @results;
+my $logtime;
+
+my $line = 0;
 while (<FH>) {
   chomp;
+
   # matching on this:
   # Oct 19 06:33:29 2011 [...] Info: New SMTP ICID 2106327026 interface 
   # [...] address IP.ADD.RE.SS [...]
@@ -491,7 +573,7 @@ while (<FH>) {
   # matching on this:
   # Oct 19 06:33:29 2011 [...] Info: ICID 2106327021 REJECT SG [...]
   # Dummy up a record to show a connection with no attempted deliveries
-  elsif (/(\w+\s+\d{1,2}?\s\d\d:\d\d:\d\d\s\d{4}?)\s.*ICID\s([0-9]+)\s(REJECT|TCPREFUSE)/) {
+  elsif (/^(\w+\s+\d{1,2}\s\d\d:\d\d:\d\d\s\d{4})\s.*ICID\s([0-9]+)\sREJECT/) {
     # We generally expect that REJECT SG will come after New SMTP ICID, but
     # it's not always so.
     if (exists ($icids{$2}->{ip})) {
@@ -522,7 +604,7 @@ while (<FH>) {
   }
   # matching on this:
   # Oct 19 06:33:29 2011 [...] Info: Start MID 1416566008 ICID 2106327026
-  elsif (/(\w+\s+\d{1,2}?\s\d\d:\d\d:\d\d\s[0-9]+)\s.*Start MID\s([0-9]+)\sICID\s([0-9]+)/) {
+  elsif (/^(\w+\s+\d{1,2}\s\d\d:\d\d:\d\d\s\d+)\s.*Start MID\s([0-9]+)\sICID\s([0-9]+)/) {
     if (exists ($icids{$3}->{ip})) {
       $mids{$2}->{ip} = $icids{$3}->{ip};
     }
@@ -658,41 +740,23 @@ while (<FH>) {
     $mids{$mid}->{header_from_domain} = $3;
     parse_dkim_signature ($mid, $dkim_sig);
   }
+
+  # we output what we have so far and clear the hash after the
+  # configured number of lines to reduce memory requirements.
+  if (++$line > $line_threshold) {
+    write_output();
+    undef %mids;
+    $line = 0;
+  }
 }
 
 close (FH);
 
-my $volDataFileName = "${hostname}.${fileDate}.csv";
-my $authDataFileName = "${hostname}_auth.${fileDate}.csv";
-
-open (VOLUME, ">$volDataFileName") || 
-  die "can't open $volDataFileName for writing\n";
-
-open (AUTHDATA, ">$authDataFileName") || 
-  die "can't open $authDataFileName for writing\n";
-
-foreach my $key (sort keys %mids) {
-
-  # Due to log rollovers, we won't have much useful info for some 
-  # messages, so we'll just punt them.
-  if ((exists($mids{$key}->{timestamp})) && 
-      ($mids{$key}->{ip} ne "0.0.0.0") &&
-      ($mids{$key}->{attempted} > 0) &&
-      (!$exclude_ranges->find($mids{$key}->{ip})))  {
-    my $volDate = UnixDate($mids{$key}->{timestamp},"%Y-%m-%d %H:%M:%S");
-    print VOLUME "$volDate,$mids{$key}->{mail_from_domain},$mids{$key}->{ip},$mids{$key}->{attempted},$mids{$key}->{delivered},$mids{$key}->{rejected},$mids{$key}->{filtered},$mids{$key}->{unknown}\n";
-
-    if (($mids{$key}->{header_from_domain} ne "null") ||
-        ($mids{$key}->{mail_from_domain} ne "null")) {
-      my $authDate = UnixDate($mids{$key}->{timestamp},"%Y-%m-%dT%H:%M:%SZ");
-      print AUTHDATA "timestamp=$authDate\tsource_ip=$mids{$key}->{ip}\theader_from_domain=$mids{$key}->{header_from_domain}\tsmtp_mail_from=$mids{$key}->{mail_from_domain}\tdkim_selector=$mids{$key}->{dkim_selector}\tdkim_identity=$mids{$key}->{dkim_identity}\tdkim_canonicalization=$mids{$key}->{dkim_canonicalization}\tdkim_domain=$mids{$key}->{dkim_domain}\tdkim_result=$mids{$key}->{dkim_result}\tdkim_pass_fail=$mids{$key}->{dkim_pass_fail}\tspf_result=$mids{$key}->{spf_result}\tspf_pass_fail=$mids{$key}->{spf_pass_fail}\tauth_policy_result=$mids{$key}->{auth_policy_result}\tcount=$mids{$key}->{dkim_count}\n\n";
-    }
-  }
-
-}
-
-close (VOLUME);
-close (AUTHDATA);
+write_output();
 
 system ("gzip $volDataFileName");
 system ("gzip $authDataFileName");
+
+#my $endTime = UnixDate("today", "%Y%m%d%H%M%S");
+#print "End: $endTime\n";
+printf "%d/%d %d:%02d:%02u\n", (localtime(time))[4,3,2,1,0];
