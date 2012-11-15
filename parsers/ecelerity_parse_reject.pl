@@ -130,9 +130,21 @@ while ($line = <FH>){
   # By definition, everything in this file is rejected, but the reason for
   # the rejection determines whether we count it as rejected or unknown.
   #
-  # The reason is captured in an E=XXX field in the line; it seems that if
-  # the field is "E=550" it's user unknown; otherwise, it's just rejected
-  (($line =~ /E=550/) ? $unknown = 1 : $rejected = 1);
+  # E=550 might be a user unknown or a rejection; everything else is a 
+  # rejection
+  if ($line !~ /E=550/) {
+    $rejected = 1;
+  }
+  else {
+    # Different customers log user unknown differently
+    if (($line =~ / 550 5.1.1 User:.*unknown/) ||
+        ($line =~ / 550.*unknown user account/)) {
+      $unknown = 1;
+    }
+    else {
+      $rejected = 1;
+    }
+  }
   
   print REJECT "$date,$domain,$ip,$attempted,$delivered,$rejected,$filtered,$unknown\n";    
 }  
