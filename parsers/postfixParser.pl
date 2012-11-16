@@ -255,7 +255,7 @@ my $rejectedConnx = 10000;
 
 # First is normal syslog; second is rsyslog
 my @dateRegex =
-   (qr/\w{3}\s\d{1,2}\s\d{2}:\d{2}:\d{2}/,
+   (qr/\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}/,
     qr/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}/);
 
 getopts('rx:l:h:', \%opts);
