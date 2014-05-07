@@ -2,7 +2,7 @@ Return Path MTA log transfer tools
 ==================================
 
 This modules contains software intended to parse MTA logs and deliver them to
-Return Path for inclusion into Return Path Reputation Netowrk
+Return Path for inclusion into Return Path Reputation Network
 
 Example Usage
 -------------
